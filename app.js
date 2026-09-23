@@ -574,13 +574,16 @@ function openRequestDetail(r){
 async function pageDashboard(c){
   const reqs=await loadAllRequests(true);
   const avail=await entities.DAAvailability.filter({created_by:App.user.email});
-  const pending=reqs.filter(r=>(r.status||'pending')==='pending').length;
+  const vehicles=await entities.Vehicle.list();
+  const audits=await entities.VehicleAudit.list();
+  const myVehicle=vehicles.find(v=>v.assigned_to_email===App.user.email)||vehicles.find(v=>v.assigned_to_name===App.user.full_name);
+  const pending=reqs.filter(r=>(r.status||'pending')==='pending');
   c.append(el('div',{class:'banner info',html:icon('sparkles')+'<div><div class="bt">Welcome back, '+esc(App.user.full_name.split(' ')[0])+'</div><div class="bd">Login is disabled for testing — use the “View as” switch (top right) to explore Driver, Manager and Admin.</div></div>'}));
   const sg=el('div',{class:'statgrid'});
-  sg.append(statCard('Open requests',pending,'history',pending?'Awaiting review':'All clear',pending?'var(--warn)':'var(--ok)'));
-  sg.append(statCard('Total submitted',reqs.length,'file'));
-  sg.append(statCard('Days available',avail.filter(a=>a.status==='available').length,'calendar','this period'));
-  sg.append(statCard('Assigned vehicle','SF21 XYZ','truck','Ford Transit'));
+  sg.append(statCard('Open requests',pending.length,'history',pending.length?'Awaiting review':'All clear',pending.length?'var(--warn)':'var(--ok)',()=>requestListModal('Open requests',pending)));
+  sg.append(statCard('Total submitted',reqs.length,'file',null,null,()=>requestListModal('Total submitted',reqs)));
+  sg.append(statCard('Days available',avail.filter(a=>a.status==='available').length,'calendar','this period',null,()=>go('DAAvailability')));
+  sg.append(statCard('Assigned vehicle',myVehicle?myVehicle.vehicle_number:'—','truck',myVehicle?((myVehicle.make||'')+' '+(myVehicle.model||'')):'No vehicle assigned',null,myVehicle?()=>vehicleDetail(myVehicle,audits):null));
   c.append(sg);
   c.append(el('h2',{class:'sec',html:icon('plus')+'Quick actions'}));
   const qa=el('div',{class:'grid',style:'grid-template-columns:repeat(auto-fit,minmax(150px,1fr))'});
@@ -844,14 +847,32 @@ function renderAuditVerdict(zone,a,state){
 }
 
 /* ---------- Fleet dashboard / vehicle management ---------- */
+function vehicleListModal(title,vehicles,audits){
+  const body=el('div',{});
+  if(!vehicles.length)body.append(el('div',{class:'empty',html:'<div class="ic">🚚</div>No vehicles here.'}));
+  else{
+    const list=el('div',{class:'list'});
+    vehicles.forEach(v=>{
+      const row=el('a',{class:'listrow',href:'javascript:void 0',onClick:()=>vehicleDetail(v,audits)});
+      row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},v.vehicle_number),el('div',{class:'mt'},(v.make||'')+' '+(v.model||'')+' · '+(v.depot_location||''))));
+      row.append(chip(v.status,statusChip[v.status]||'muted'));
+      list.append(row);
+    });
+    body.append(list);
+  }
+  modal(title,body,[el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')]);
+}
 async function pageFleetDashboard(c){
   const vehicles=await entities.Vehicle.list('-created_date');
   const audits=await entities.VehicleAudit.list();
+  const available=vehicles.filter(v=>v.status==='available');
+  const maintenance=vehicles.filter(v=>v.status==='maintenance');
+  const auditRequired=vehicles.filter(v=>v.status==='audit_required');
   const sg=el('div',{class:'statgrid'});
-  sg.append(statCard('Total vehicles',vehicles.length,'truck'));
-  sg.append(statCard('Available',vehicles.filter(v=>v.status==='available').length,'check',null,'var(--ok)'));
-  sg.append(statCard('In maintenance',vehicles.filter(v=>v.status==='maintenance').length,'wrench',null,'var(--warn)'));
-  sg.append(statCard('Audit required',vehicles.filter(v=>v.status==='audit_required').length,'clipboard',null,'var(--danger)'));
+  sg.append(statCard('Total vehicles',vehicles.length,'truck',null,null,()=>vehicleListModal('All vehicles',vehicles,audits)));
+  sg.append(statCard('Available',available.length,'check',null,'var(--ok)',()=>vehicleListModal('Available vehicles',available,audits)));
+  sg.append(statCard('In maintenance',maintenance.length,'wrench',null,'var(--warn)',()=>vehicleListModal('In maintenance',maintenance,audits)));
+  sg.append(statCard('Audit required',auditRequired.length,'clipboard',null,'var(--danger)',()=>vehicleListModal('Audit required',auditRequired,audits)));
   c.append(sg);
   c.append(el('div',{class:'row',style:'margin:18px 0 0;justify-content:space-between;align-items:center'},el('h2',{class:'sec',style:'margin:0',html:icon('truck')+'Vehicles'}),el('button',{class:'btn primary sm',onClick:addVehicleModal,html:icon('plus')+'Add vehicle'})));
   const card=el('div',{class:'card',style:'margin-top:12px;overflow-x:auto'});
@@ -929,13 +950,46 @@ async function pageManagerDashboard(c){
   if(!pending.length)c.append(el('div',{class:'empty',html:'<div class="ic">✅</div>Nothing pending.'}));
   else{const list=el('div',{class:'list'});pending.slice(0,8).forEach(r=>list.append(requestRow(r)));c.append(list);}
 }
+function driverListModal(users){
+  const body=el('div',{});
+  if(!users.length)body.append(el('div',{class:'empty',html:'<div class="ic">🧑‍✈️</div>No users yet.'}));
+  else{
+    const list=el('div',{class:'list'});
+    users.forEach(d=>{
+      const row=el('a',{class:'listrow',href:'javascript:void 0',onClick:()=>driverDetail(d)});
+      row.append(el('div',{class:'av',style:'width:38px;height:38px;border-radius:50%;background:var(--brand-2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none'},(d.full_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()));
+      row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},d.full_name),el('div',{class:'mt'},(d.depot||'—')+' · '+(d.transporter_id||'—'))));
+      row.append(chip(d.status||'active',d.status==='inactive'?'muted':'ok'));
+      list.append(row);
+    });
+    body.append(list);
+  }
+  modal('Users',body,[el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')]);
+}
+function auditListModal(audits){
+  const body=el('div',{});
+  if(!audits.length)body.append(el('div',{class:'empty',html:'<div class="ic">📋</div>No audits recorded yet.'}));
+  else{
+    const list=el('div',{class:'list'});
+    audits.forEach(a=>{
+      const cond=a.overall_condition||'good';const col={excellent:'var(--ok)',good:'var(--ok)',fair:'var(--warn)',poor:'var(--danger)'}[cond];
+      const row=el('a',{class:'listrow',href:'javascript:void 0',onClick:()=>auditDetail(a)});
+      row.append(el('span',{class:'band',style:'background:'+col}));
+      row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},a.vehicle_number+' · '+titleCase(a.audit_type||'')),el('div',{class:'mt'},(a.damage_detected||[]).length+' damage item(s) · '+fmtDate(a.created_date))));
+      row.append(chip(cond,cond==='poor'?'danger':cond==='fair'?'warn':'ok'));
+      list.append(row);
+    });
+    body.append(list);
+  }
+  modal('Audits',body,[el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')]);
+}
 async function pageAdminDashboard(c){
   const reqs=await loadAllRequests(false);const vehicles=await entities.Vehicle.list();const audits=await entities.VehicleAudit.list();const users=await ensureDrivers();
   const sg=el('div',{class:'statgrid'});
-  sg.append(statCard('Vehicles',vehicles.length,'truck'));
-  sg.append(statCard('Users',users.length,'users'));
-  sg.append(statCard('Total requests',reqs.length,'file'));
-  sg.append(statCard('Audits',audits.length,'clipboard'));
+  sg.append(statCard('Vehicles',vehicles.length,'truck',null,null,()=>vehicleListModal('Vehicles',vehicles,audits)));
+  sg.append(statCard('Users',users.length,'users',null,null,()=>driverListModal(users)));
+  sg.append(statCard('Total requests',reqs.length,'file',null,null,()=>requestListModal('Total requests',reqs)));
+  sg.append(statCard('Audits',audits.length,'clipboard',null,null,()=>auditListModal(audits)));
   c.append(sg);
   c.append(el('div',{class:'banner info',style:'margin-top:18px',html:icon('sparkles')+'<div><div class="bt">System healthy</div><div class="bd">All data stored locally (IndexedDB). Manage AI & data in Settings.</div></div>'}));
   c.append(el('h2',{class:'sec',html:icon('history')+'Recent activity'}));
