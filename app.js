@@ -515,8 +515,10 @@ window.FW.REQUEST_FORMS=REQUEST_FORMS;
 /* ===========================================================================
    PAGES
    =========================================================================== */
-function statCard(label,val,ic,delta,color){
-  return el('div',{class:'card stat'},
+function statCard(label,val,ic,delta,color,onClick){
+  const props={class:'card stat'+(onClick?' stat-clickable':'')};
+  if(onClick)props.onClick=onClick;
+  return el('div',props,
     el('div',{class:'lab',html:icon(ic)+'<span>'+esc(label)+'</span>'}),
     el('div',{class:'val',style:color?('color:'+color):''},String(val)),
     delta?el('div',{class:'delta'},delta):null);
@@ -883,19 +885,49 @@ function vehicleDetail(v,audits){
 }
 
 /* ---------- Manager / Admin dashboards ---------- */
+function requestListModal(title,items){
+  const body=el('div',{});
+  if(!items.length)body.append(el('div',{class:'empty',html:'<div class="ic">✅</div>Nothing here.'}));
+  else{const list=el('div',{class:'list'});items.forEach(r=>list.append(requestRow(r)));body.append(list);}
+  modal(title,body,[el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')]);
+}
+async function availableDriversModal(avail){
+  const today=new Date().toISOString().slice(0,10);
+  const todays=avail.filter(a=>a.date===today&&a.status==='available');
+  const drivers=await ensureDrivers();
+  const byEmail={};drivers.forEach(d=>byEmail[d.email]=d);
+  const body=el('div',{});
+  if(!todays.length)body.append(el('div',{class:'empty',html:'<div class="ic">📅</div>No drivers marked available today.'}));
+  else{
+    const list=el('div',{class:'list'});
+    todays.forEach(a=>{
+      const d=byEmail[a.created_by];
+      const name=d?.full_name||(a.created_by||'').split('@')[0]||'Unknown';
+      const row=el('div',{class:'listrow'});
+      row.append(el('div',{class:'av',style:'width:38px;height:38px;border-radius:50%;background:var(--brand-2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none'},name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()));
+      row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},name),el('div',{class:'mt'},(d?.depot||'—')+' · '+(a.shift_start||'—')+'–'+(a.shift_end||'—'))));
+      row.append(chip('available','ok'));
+      list.append(row);
+    });
+    body.append(list);
+  }
+  modal('Drivers available today',body,[el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')]);
+}
 async function pageManagerDashboard(c){
   const reqs=await loadAllRequests(false);
   const avail=await entities.DAAvailability.list();
+  const pending=reqs.filter(r=>(r.status||'pending')==='pending');
+  const accidents=reqs.filter(r=>r._type==='Accident');
+  const maintenance=reqs.filter(r=>r._type==='Maintenance');
   const sg=el('div',{class:'statgrid'});
-  sg.append(statCard('Open requests',reqs.filter(r=>(r.status||'pending')==='pending').length,'history',null,'var(--warn)'));
-  sg.append(statCard('Drivers available today',avail.filter(a=>a.date===new Date().toISOString().slice(0,10)&&a.status==='available').length,'users',null,'var(--ok)'));
-  sg.append(statCard('Accidents (all)',reqs.filter(r=>r._type==='Accident').length,'car'));
-  sg.append(statCard('Maintenance',reqs.filter(r=>r._type==='Maintenance').length,'wrench'));
+  sg.append(statCard('Open requests',pending.length,'history',null,'var(--warn)',()=>requestListModal('Open requests',pending)));
+  sg.append(statCard('Drivers available today',avail.filter(a=>a.date===new Date().toISOString().slice(0,10)&&a.status==='available').length,'users',null,'var(--ok)',()=>availableDriversModal(avail)));
+  sg.append(statCard('Accidents (all)',accidents.length,'car',null,null,()=>requestListModal('Accidents (all)',accidents)));
+  sg.append(statCard('Maintenance',maintenance.length,'wrench',null,null,()=>requestListModal('Maintenance',maintenance)));
   c.append(sg);
   c.append(el('h2',{class:'sec',html:icon('history')+'Requests needing review'}));
-  const pend=reqs.filter(r=>(r.status||'pending')==='pending');
-  if(!pend.length)c.append(el('div',{class:'empty',html:'<div class="ic">✅</div>Nothing pending.'}));
-  else{const list=el('div',{class:'list'});pend.slice(0,8).forEach(r=>list.append(requestRow(r)));c.append(list);}
+  if(!pending.length)c.append(el('div',{class:'empty',html:'<div class="ic">✅</div>Nothing pending.'}));
+  else{const list=el('div',{class:'list'});pending.slice(0,8).forEach(r=>list.append(requestRow(r)));c.append(list);}
 }
 async function pageAdminDashboard(c){
   const reqs=await loadAllRequests(false);const vehicles=await entities.Vehicle.list();const audits=await entities.VehicleAudit.list();const users=await ensureDrivers();

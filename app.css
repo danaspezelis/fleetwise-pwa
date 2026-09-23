@@ -80,6 +80,8 @@ h2.sec svg{width:17px;height:17px;flex:none}
 
 .tile{display:flex;align-items:flex-start;gap:14px;padding:18px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);text-align:left;transition:.12s;width:100%}
 .tile:hover{border-color:#cbd5e1;transform:translateY(-1px)}
+.stat-clickable{cursor:pointer;transition:.12s}
+.stat-clickable:hover{border-color:#cbd5e1;transform:translateY(-1px)}
 .tile .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none}
 .tile .ic svg{width:22px;height:22px}
 .tile .t{font-weight:700;font-size:15px}
