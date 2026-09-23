@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="FleetWise — fleet operations, vehicle audits and AI damage assessment.">
+<title>FleetWise</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FleetWise">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./app.css">
+<style>
+  #splash{position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:200;color:#fff;font-family:Inter,system-ui,sans-serif}
+  #splash .l{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#2563eb,#1e40af);display:flex;align-items:center;justify-content:center}
+  #splash .l svg{width:36px;height:36px;stroke:#fff;fill:none;stroke-width:2}
+  #splash .n{font-weight:800;font-size:22px;letter-spacing:-.01em}
+  #splash .s{width:22px;height:22px;border:3px solid #ffffff33;border-top-color:#fff;border-radius:50%;animation:r .7s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="splash">
+  <div class="l"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></div>
+  <div class="n">FleetWise</div>
+  <div class="s"></div>
+</div>
+<script src="./app.js"></script>
+<script>window.addEventListener('load',()=>{const sp=document.getElementById('splash');if(sp)setTimeout(()=>sp.remove(),500);});</script>
+</body>
+</html>
