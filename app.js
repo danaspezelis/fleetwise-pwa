@@ -415,6 +415,8 @@ function field(spec,state){
     return wrap;
   }else if(spec.type==='photos'||spec.type==='photo'){
     return photoField(spec,state);
+  }else if(spec.type==='geo'){
+    return geoField(spec,state);
   }else{
     input=el('input',{class:'inp',type:spec.type||'text',placeholder:spec.placeholder||'',maxlength:spec.maxlength});
     input.value=state[spec.key]||'';
@@ -437,6 +439,61 @@ function photoField(spec,state){
   input.onchange=async()=>{for(const f of input.files){const data=await resizeImage(f,1024,0.78);if(spec.type==='photo')state[spec.key]=data;else state[spec.key].push(data);}input.value='';draw();};
   wrap.append(dz,input,grid);draw();return wrap;
 }
+/* GPS-locked location field — captures device GPS on load, reverse-geocodes to an
+   address, and locks the value (read-only) so it can't be typed/faked. Falls back
+   to manual text entry if location access is denied or unavailable. */
+async function reverseGeocode(lat,lng){
+  try{
+    const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,{headers:{'Accept':'application/json'}});
+    if(!res.ok)return null;
+    const data=await res.json();
+    return data?.display_name||null;
+  }catch(e){return null;}
+}
+function geoField(spec,state){
+  const wrap=el('label',{class:'fld'});
+  if(spec.full)wrap.style.gridColumn='1 / -1';
+  wrap.append(el('span',{html:esc(spec.label)+(spec.required?' <span class="req">*</span>':'')}));
+  state[spec.key]=state[spec.key]||'';
+  state[spec.key+'_lat']=state[spec.key+'_lat']??null;
+  state[spec.key+'_lng']=state[spec.key+'_lng']??null;
+  const zone=el('div',{});
+  wrap.append(zone);
+  const renderLocked=text=>{
+    zone.innerHTML='';
+    zone.append(el('div',{class:'geo-locked'},
+      el('span',{html:icon('mappin'),style:'flex:none;color:var(--ok)'}),
+      el('span',{style:'flex:1;font-size:13.5px'},text),
+      el('span',{class:'chip ok',style:'flex:none'},'GPS locked')));
+    zone.append(el('button',{class:'btn ghost sm',type:'button',style:'margin-top:8px',html:icon('mappin')+'Refresh location',onClick:capture}));
+  };
+  const renderManual=msg=>{
+    zone.innerHTML='';
+    if(msg)zone.append(el('div',{style:'font-size:12px;color:var(--muted);margin-bottom:6px'},msg));
+    const input=el('input',{class:'inp',placeholder:spec.placeholder||'Enter location manually'});
+    input.value=state[spec.key]||'';
+    input.oninput=()=>state[spec.key]=input.value;
+    zone.append(input);
+    zone.append(el('button',{class:'btn ghost sm',type:'button',style:'margin-top:8px',html:icon('mappin')+'Try GPS again',onClick:capture}));
+  };
+  async function capture(){
+    zone.innerHTML='';
+    zone.append(el('div',{class:'geo-status'},el('span',{class:'spin dark'}),'Getting your location…'));
+    if(!navigator.geolocation){renderManual('GPS not available on this device.');return;}
+    navigator.geolocation.getCurrentPosition(async pos=>{
+      const{latitude,longitude}=pos.coords;
+      state[spec.key+'_lat']=latitude;state[spec.key+'_lng']=longitude;
+      const addr=await reverseGeocode(latitude,longitude);
+      const text=addr||(latitude.toFixed(5)+', '+longitude.toFixed(5));
+      state[spec.key]=text;
+      renderLocked(text);
+    },err=>{
+      renderManual('Couldn\'t get GPS location ('+(err.message||'permission denied')+'). Enter manually:');
+    },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+  }
+  capture();
+  return wrap;
+}
 function buildForm(fields,state,onSubmit,submitLabel){
   const form=el('form',{onSubmit:e=>{e.preventDefault();
     for(const f of fields){if(f.required&&!state[f.key]&&!(Array.isArray(state[f.key])&&state[f.key].length)){toast('Please complete: '+f.label,'err');return;}}
@@ -456,7 +513,7 @@ const REQUEST_FORMS={
     {key:'delivery_associate',label:'Delivery associate'},
     {key:'home_site_location',label:'Depot',type:'select',options:DEPOTS,required:true},
     {key:'accident_date',label:'Date & time of accident',type:'datetime-local',required:true},
-    {key:'location',label:'Accident location',full:true},
+    {key:'location',label:'Accident location',type:'geo',full:true},
     {key:'weather_conditions',label:'Weather',type:'select',options:['dry','rain','snow','ice','fog']},
     {key:'severity',label:'Severity',type:'select',options:['minor','moderate','severe'],required:true},
     {key:'description',label:'What happened?',type:'textarea',full:true,required:true},
@@ -471,7 +528,7 @@ const REQUEST_FORMS={
     {key:'delivery_associate',label:'Delivery associate'},
     {key:'contact_number',label:'Contact number',type:'tel'},
     {key:'incident_date',label:'Date & time',type:'datetime-local',required:true},
-    {key:'location',label:'Location',full:true},
+    {key:'location',label:'Location',type:'geo',full:true},
     {key:'da_statement',label:'Your statement',type:'textarea',full:true,required:true},
     {key:'injury_sustained',label:'Injury sustained (if any)',full:true},
     {key:'correct_ppe_worn',label:'Correct PPE worn?',type:'checkbox'},
@@ -504,7 +561,7 @@ const REQUEST_FORMS={
     {key:'vehicle_number',label:'Vehicle registration',required:true,maxlength:16},
     {key:'delivery_associate',label:'Delivery associate'},
     {key:'home_site_location',label:'Depot',type:'select',options:DEPOTS,required:true},
-    {key:'location',label:'Your current location',full:true,required:true},
+    {key:'location',label:'Your current location',type:'geo',full:true,required:true},
     {key:'issue_type',label:'Problem',type:'select',options:['wont_start','flat_tyre','accident','warning_light','out_of_fuel','other'],required:true},
     {key:'description',label:'Describe what happened',type:'textarea',full:true,required:true},
     {key:'safe_location',label:'Are you in a safe location?',type:'checkbox'},

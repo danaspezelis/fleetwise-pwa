@@ -82,6 +82,9 @@ h2.sec svg{width:17px;height:17px;flex:none}
 .tile:hover{border-color:#cbd5e1;transform:translateY(-1px)}
 .stat-clickable{cursor:pointer;transition:.12s}
 .stat-clickable:hover{border-color:#cbd5e1;transform:translateY(-1px)}
+
+.geo-status{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.geo-locked{display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
 .tile .ic{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none}
 .tile .ic svg{width:22px;height:22px}
 .tile .t{font-weight:700;font-size:15px}
