@@ -256,6 +256,13 @@ async function seedIfEmpty(force){
   ];
   for(const v of vehicles) await entities.Vehicle.create(v);
 
+  const drivers=[
+    {full_name:'Jordan Mills',email:'driver@fleetwise.app',role:'driver',depot:'DEH1 Edinburgh',transporter_id:'A1QX7K2',phone:'07700 900111',status:'active'},
+    {full_name:'Priya Shah',email:'driver2@fleetwise.app',role:'driver',depot:'DDD1 Dundee',transporter_id:'B7TT2M9',phone:'07700 900222',status:'active'},
+    {full_name:'Connor Reid',email:'driver3@fleetwise.app',role:'driver',depot:'DAB1 Aberdeen',transporter_id:'C3RR9P1',phone:'07700 900333',status:'active'},
+  ];
+  for(const d of drivers) await entities.User.create(d);
+
   await entities.MaintenanceRequest.create({vehicle_number:'SF21 XYZ',delivery_associate:'Jordan Mills',home_site_location:'DEH1 Edinburgh',issue_type:'brakes',description:'Grinding noise from front brakes under load.',urgency:'high',current_mileage:48210,status:'pending',created_by:'driver@fleetwise.app'});
   await entities.MaintenanceRequest.create({vehicle_number:'LD70 KFP',delivery_associate:'Priya Shah',home_site_location:'DDD1 Dundee',issue_type:'warning_light',description:'Engine management light intermittent.',urgency:'medium',current_mileage:71540,status:'in_progress',created_by:'driver2@fleetwise.app'});
   await entities.TireReplacementRequest.create({vehicle_number:'SF21 XYZ',delivery_associate:'Jordan Mills',home_site_location:'DEH1 Edinburgh',tire_position:'front_nearside',tire_size:'215/65 R16',reason:'worn',description:'Tread below limit on nearside front.',urgency:'medium',current_mileage:48210,status:'pending',created_by:'driver@fleetwise.app'});
@@ -962,13 +969,54 @@ async function pageReports(c){
   c.append(card2);
 }
 async function pageDriverManagement(c){
-  const avail=await entities.DAAvailability.list();
-  const drivers=[{...ROLE_USERS.driver},{email:'driver2@fleetwise.app',full_name:'Priya Shah',role:'driver',depot:'DDD1 Dundee',transporter_id:'B7TT2M9'},{email:'driver3@fleetwise.app',full_name:'Connor Reid',role:'driver',depot:'DAB1 Aberdeen',transporter_id:'C3RR9P1'}];
+  let drivers=await entities.User.list('full_name');
+  if(!drivers.length){
+    const defaults=[
+      {full_name:'Jordan Mills',email:'driver@fleetwise.app',role:'driver',depot:'DEH1 Edinburgh',transporter_id:'A1QX7K2',phone:'07700 900111',status:'active'},
+      {full_name:'Priya Shah',email:'driver2@fleetwise.app',role:'driver',depot:'DDD1 Dundee',transporter_id:'B7TT2M9',phone:'07700 900222',status:'active'},
+      {full_name:'Connor Reid',email:'driver3@fleetwise.app',role:'driver',depot:'DAB1 Aberdeen',transporter_id:'C3RR9P1',phone:'07700 900333',status:'active'},
+    ];
+    for(const d of defaults) await entities.User.create(d);
+    drivers=await entities.User.list('full_name');
+  }
+  const addBtn=el('button',{class:'btn primary',html:icon('plus')+'Add driver',onClick:()=>{
+    const s={role:'driver',status:'active'};
+    const form=buildForm([
+      {key:'full_name',label:'Full name',required:true},
+      {key:'email',label:'Email',type:'email'},
+      {key:'depot',label:'Depot',type:'select',options:DEPOTS,required:true},
+      {key:'transporter_id',label:'Transporter ID'},
+      {key:'phone',label:'Phone'},
+    ],s,async()=>{await entities.User.create(s);$$('.modal-bg').forEach(m=>m.remove());toast('Driver added');renderShell();},'Add driver');
+    modal('New driver',form);
+  }});
+  c.append(el('div',{class:'row',style:'margin-bottom:14px'},addBtn));
+  if(!drivers.length){c.append(el('div',{class:'empty',html:'<div class="ic">🧑‍✈️</div>No drivers yet. Add one to get started.'}));return;}
   const list=el('div',{class:'list'});
-  drivers.forEach(d=>{const row=el('div',{class:'listrow'});row.append(el('div',{class:'av',style:'width:38px;height:38px;border-radius:50%;background:var(--brand-2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none'},d.full_name.split(' ').map(w=>w[0]).join('')));
-    row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},d.full_name),el('div',{class:'mt'},d.depot+' · '+d.transporter_id)));
-    row.append(chip('active','ok'));list.append(row);});
+  drivers.forEach(d=>{
+    const row=el('a',{class:'listrow',href:'javascript:void 0',onClick:()=>driverDetail(d)});
+    row.append(el('div',{class:'av',style:'width:38px;height:38px;border-radius:50%;background:var(--brand-2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none'},(d.full_name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()));
+    row.append(el('div',{style:'flex:1'},el('div',{class:'ttl'},d.full_name),el('div',{class:'mt'},(d.depot||'—')+' · '+(d.transporter_id||'—'))));
+    row.append(chip(d.status||'active',d.status==='inactive'?'muted':'ok'));
+    list.append(row);
+  });
   c.append(list);
+}
+function driverDetail(d){
+  const body=el('div',{});
+  body.append(el('div',{class:'row',style:'margin:6px 0 14px'},chip(d.status||'active',d.status==='inactive'?'muted':'ok'),el('span',{class:'chip muted',style:'margin-left:auto'},d.depot||'No depot')));
+  body.append(el('div',{style:'font-size:13.5px;color:var(--slate);line-height:1.7'},
+    el('div',{},'Email: '+(d.email||'—')),
+    el('div',{},'Phone: '+(d.phone||'—')),
+    el('div',{},'Transporter ID: '+(d.transporter_id||'—'))));
+  modal(d.full_name,body,[
+    el('button',{class:'btn danger',html:icon('trash')+'Remove driver',onClick:async e=>{
+      await entities.User.delete(d.id);
+      e.target.closest('.modal-bg').remove();
+      toast('Driver removed');renderShell();
+    }}),
+    el('button',{class:'btn ghost',onClick:e=>e.target.closest('.modal-bg').remove()},'Close')
+  ]);
 }
 async function pageTeamAvailability(c){
   const all=await entities.DAAvailability.list('-date');
