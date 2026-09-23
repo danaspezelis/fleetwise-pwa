@@ -898,7 +898,7 @@ async function pageManagerDashboard(c){
   else{const list=el('div',{class:'list'});pend.slice(0,8).forEach(r=>list.append(requestRow(r)));c.append(list);}
 }
 async function pageAdminDashboard(c){
-  const reqs=await loadAllRequests(false);const vehicles=await entities.Vehicle.list();const audits=await entities.VehicleAudit.list();const users=Object.values(ROLE_USERS);
+  const reqs=await loadAllRequests(false);const vehicles=await entities.Vehicle.list();const audits=await entities.VehicleAudit.list();const users=await ensureDrivers();
   const sg=el('div',{class:'statgrid'});
   sg.append(statCard('Vehicles',vehicles.length,'truck'));
   sg.append(statCard('Users',users.length,'users'));
@@ -968,7 +968,7 @@ async function pageReports(c){
   Object.entries(byDepot).forEach(([d,n])=>card2.append(el('div',{style:'margin-bottom:12px'},el('div',{style:'display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px'},el('span',{},d),el('b',{},String(n))),el('div',{class:'bar'},el('i',{style:'width:'+(n/dmax*100)+'%'})))));
   c.append(card2);
 }
-async function pageDriverManagement(c){
+async function ensureDrivers(){
   let drivers=await entities.User.list('full_name');
   if(!drivers.length){
     const defaults=[
@@ -979,6 +979,10 @@ async function pageDriverManagement(c){
     for(const d of defaults) await entities.User.create(d);
     drivers=await entities.User.list('full_name');
   }
+  return drivers;
+}
+async function pageDriverManagement(c){
+  const drivers=await ensureDrivers();
   const addBtn=el('button',{class:'btn primary',html:icon('plus')+'Add driver',onClick:()=>{
     const s={role:'driver',status:'active'};
     const form=buildForm([
