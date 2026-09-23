@@ -152,7 +152,7 @@ const settings={
   set apiKey(v){v?localStorage.setItem('fw_api_key',v):localStorage.removeItem('fw_api_key');},
   get demo(){return localStorage.getItem('fw_force_demo')==='1' || !this.apiKey;},
   set forceDemo(v){localStorage.setItem('fw_force_demo',v?'1':'0');},
-  get model(){return localStorage.getItem('fw_model')||'claude-sonnet-4-6';},
+  get model(){return localStorage.getItem('fw_model')||'claude-sonnet-5';},
 };
 
 async function InvokeLLM({prompt,response_json_schema,file_urls}){
